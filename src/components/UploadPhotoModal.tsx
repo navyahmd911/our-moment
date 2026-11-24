@@ -1,6 +1,14 @@
-import { useState, useRef } from 'react'
+
+import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, UploadCloud, Image as ImageIcon, AlertCircle, Heart, Loader2 } from 'lucide-react'
+import {
+  X,
+  UploadCloud,
+  Image as ImageIcon,
+  AlertCircle,
+  Heart,
+  Loader2,
+} from 'lucide-react'
 import { supabase, type DbMemory } from '../lib/supabase'
 import { useAuth } from '../context/useAuth'
 
@@ -10,51 +18,119 @@ interface UploadPhotoModalProps {
   onSuccess: (newMemory: DbMemory, signedUrl: string) => void
 }
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
-const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+const MAX_FILE_SIZE = 5 * 1024 * 1024
+const ALLOWED_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+]
 
-export default function UploadPhotoModal({ isOpen, onClose, onSuccess }: UploadPhotoModalProps) {
+export default function UploadPhotoModal({
+  isOpen,
+  onClose,
+  onSuccess,
+}: UploadPhotoModalProps) {
   const { user, profile } = useAuth()
+
   const [title, setTitle] = useState('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
   const [isUploading, setIsUploading] = useState(false)
+
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
-  if (!isOpen) return null
+  // Membersihkan seluruh form ketika modal ditutup.
+  useEffect(() => {
+    if (!isOpen) {
+      setTitle('')
+      setSelectedFile(null)
+      setErrorMessage('')
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      setPreviewUrl((currentUrl) => {
+        if (currentUrl) {
+          URL.revokeObjectURL(currentUrl)
+        }
+        return null
+      })
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+
+      setIsUploading(false)
+    }
+  }, [isOpen])
+
+  // Membersihkan preview ketika komponen dilepas.
+  useEffect(() => {
+    return () => {
+      setPreviewUrl((currentUrl) => {
+        if (currentUrl) {
+          URL.revokeObjectURL(currentUrl)
+        }
+        return null
+      })
+    }
+  }, [])
+
+  const clearSelectedFile = () => {
+    setSelectedFile(null)
+
+    setPreviewUrl((currentUrl) => {
+      if (currentUrl) {
+        URL.revokeObjectURL(currentUrl)
+      }
+      return null
+    })
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const handleFileChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = e.target.files?.[0]
     setErrorMessage('')
 
-    if (!file) {
-      setSelectedFile(null)
-      setPreviewUrl(null)
-      return
-    }
+    if (!file) return
 
     if (!ALLOWED_TYPES.includes(file.type)) {
-      setErrorMessage('Format berkas tidak didukung. Harap pilih gambar JPEG, PNG, atau WEBP.')
+      clearSelectedFile()
+      setErrorMessage(
+        'Format berkas tidak didukung. Harap pilih gambar JPEG, PNG, WEBP, atau GIF.'
+      )
       return
     }
 
     if (file.size > MAX_FILE_SIZE) {
-      setErrorMessage('Ukuran gambar terlalu besar. Maksimal ukuran foto adalah 5 MB.')
+      clearSelectedFile()
+      setErrorMessage(
+        'Ukuran gambar terlalu besar. Maksimal ukuran foto adalah 5 MB.'
+      )
       return
     }
 
+    clearSelectedFile()
+
     setSelectedFile(file)
-    const url = URL.createObjectURL(file)
-    setPreviewUrl(url)
+    setPreviewUrl(URL.createObjectURL(file))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedFile || !title.trim() || !user) return
+
+    if (!selectedFile || !title.trim() || !user || isUploading) {
+      return
+    }
 
     if (!profile?.isMember) {
-      setErrorMessage('Akun Anda belum terdaftar di tabel couple_members. Daftarkan akun Anda ke Supabase sesuai petunjuk di SUPABASE_SETUP.md.')
+      setErrorMessage(
+        'Akun Anda belum terdaftar di tabel couple_members. Daftarkan akun Anda ke Supabase.'
+      )
       return
     }
 
@@ -62,12 +138,16 @@ export default function UploadPhotoModal({ isOpen, onClose, onSuccess }: UploadP
     setErrorMessage('')
 
     try {
-      // 1. Path penyimpanan privat konsisten dengan folder berbasis auth.uid()
+      // 1. Membuat nama file unik.
       const fileExt = selectedFile.name.split('.').pop() || 'jpg'
-      const cleanFileName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`
+
+      const cleanFileName = `${Date.now()}-${Math.random()
+        .toString(36)
+        .substring(2, 9)}.${fileExt}`
+
       const filePath = `${user.id}/${cleanFileName}`
 
-      // 2. Unggah ke Private Supabase Storage (bucket 'memories')
+      // 2. Upload foto ke private Supabase Storage.
       const { error: uploadError } = await supabase.storage
         .from('memories')
         .upload(filePath, selectedFile, {
@@ -76,45 +156,72 @@ export default function UploadPhotoModal({ isOpen, onClose, onSuccess }: UploadP
         })
 
       if (uploadError) {
-        throw new Error(`Gagal mengunggah foto ke storage: ${uploadError.message}`)
+        throw new Error(
+          `Gagal mengunggah foto ke storage: ${uploadError.message}`
+        )
       }
 
-      // 3. Simpan metadata ke tabel public.memories
-      const uploader = profile.name
+      // 3. Simpan metadata foto ke database.
       const { data: insertedData, error: dbError } = await supabase
         .from('memories')
         .insert({
           title: title.trim(),
           storage_path: filePath,
           user_id: user.id,
-          uploader_name: uploader,
+          uploader_name: profile.name,
         })
         .select()
         .single()
 
       if (dbError) {
-        throw new Error(`Gagal menyimpan data foto ke database: ${dbError.message}`)
+        throw new Error(
+          `Gagal menyimpan data foto ke database: ${dbError.message}`
+        )
       }
 
-      // 4. Buat Signed URL aman berdurasi 1 jam untuk ditampilkan di client
-      const { data: signedData, error: signedError } = await supabase.storage
-        .from('memories')
-        .createSignedUrl(filePath, 3600)
+      // 4. Membuat signed URL untuk menampilkan foto.
+      const { data: signedData, error: signedError } =
+        await supabase.storage
+          .from('memories')
+          .createSignedUrl(filePath, 3600)
 
       if (signedError || !signedData?.signedUrl) {
         throw new Error('Gagal mendapatkan signed URL foto.')
       }
 
-      // 5. Sukses
+      // 5. Beritahu komponen Memories bahwa upload berhasil.
       onSuccess(insertedData as DbMemory, signedData.signedUrl)
+
+      // 6. Reset form setelah upload berhasil.
+      setTitle('')
+      setSelectedFile(null)
+      setErrorMessage('')
+
+      setPreviewUrl((currentUrl) => {
+        if (currentUrl) {
+          URL.revokeObjectURL(currentUrl)
+        }
+        return null
+      })
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+
       onClose()
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Terjadi kesalahan saat mengunggah foto.'
+      const msg =
+        err instanceof Error
+          ? err.message
+          : 'Terjadi kesalahan saat mengunggah foto.'
+
       setErrorMessage(msg)
     } finally {
       setIsUploading(false)
     }
   }
+
+  if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm">
@@ -122,7 +229,9 @@ export default function UploadPhotoModal({ isOpen, onClose, onSuccess }: UploadP
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        onClick={onClose}
+        onClick={() => {
+          if (!isUploading) onClose()
+        }}
         className="absolute inset-0"
       />
 
@@ -132,13 +241,15 @@ export default function UploadPhotoModal({ isOpen, onClose, onSuccess }: UploadP
         exit={{ opacity: 0, scale: 0.94, y: 20 }}
         className="relative z-10 max-w-lg w-full bg-[#FFFDF9] rounded-3xl p-6 sm:p-8 border-2 border-[#E5DCD3] shadow-letter text-stone-800 overflow-hidden"
       >
-        {/* Top washi tape decor */}
+        {/* Dekorasi washi tape */}
         <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-28 h-6 bg-[#DCE8E5] -rotate-1 shadow-xs" />
 
-        {/* Close Button */}
+        {/* Tombol tutup */}
         <button
+          type="button"
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 rounded-full bg-white/80 hover:bg-white text-[#765B62] shadow-xs transition cursor-pointer"
+          disabled={isUploading}
+          className="absolute top-4 right-4 p-2 rounded-full bg-white/80 hover:bg-white text-[#765B62] shadow-xs transition cursor-pointer disabled:opacity-50"
         >
           <X className="w-5 h-5" />
         </button>
@@ -148,28 +259,34 @@ export default function UploadPhotoModal({ isOpen, onClose, onSuccess }: UploadP
           <div className="w-12 h-12 rounded-full bg-[#DCE8E5] text-[#533E43] border border-white mx-auto flex items-center justify-center shadow-xs mb-3">
             <UploadCloud className="w-5 h-5" />
           </div>
+
           <span className="text-[11px] uppercase tracking-widest font-semibold text-[#9B7B83]">
             Galeri Privat Bersama
           </span>
+
           <h3 className="font-serif text-2xl text-[#533E43] font-normal mt-1">
             Tambah Foto Kenangan
           </h3>
+
           <p className="text-xs text-stone-600 mt-1">
             Diunggah oleh <strong>{profile?.name || 'Anda'}</strong>
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* File Upload Zone */}
+          {/* Area upload foto */}
           <div
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => {
+              if (!isUploading) fileInputRef.current?.click()
+            }}
             className="border-2 border-dashed border-[#E5DCD3] hover:border-[#D4A9AF] rounded-2xl p-4 text-center cursor-pointer bg-[#F8F2EA]/40 transition group relative overflow-hidden"
           >
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp"
+              accept="image/jpeg,image/png,image/webp,image/gif"
               onChange={handleFileChange}
+              disabled={isUploading}
               className="hidden"
             />
 
@@ -180,6 +297,7 @@ export default function UploadPhotoModal({ isOpen, onClose, onSuccess }: UploadP
                   alt="Pratinjau Foto"
                   className="w-full h-full object-cover"
                 />
+
                 <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-xs font-medium">
                   Klik untuk mengganti foto
                 </div>
@@ -189,21 +307,24 @@ export default function UploadPhotoModal({ isOpen, onClose, onSuccess }: UploadP
                 <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center text-[#765B62] shadow-xs group-hover:scale-105 transition-transform">
                   <ImageIcon className="w-6 h-6 text-[#9B7B83]" />
                 </div>
+
                 <p className="text-xs font-medium text-[#765B62]">
                   Pilih foto dari perangkat Anda
                 </p>
+
                 <p className="text-[11px] text-[#9B7B83]">
-                  JPG, PNG, atau WEBP (Maksimal 5 MB)
+                  JPG, PNG, WEBP, atau GIF (Maksimal 5 MB)
                 </p>
               </div>
             )}
           </div>
 
-          {/* Title Input */}
+          {/* Input judul */}
           <div>
             <label className="block text-[11px] font-medium text-[#765B62] mb-1">
               Judul Kenangan (Polaroid)
             </label>
+
             <input
               type="text"
               placeholder="Contoh: Kencan Sore di Malang"
@@ -211,11 +332,12 @@ export default function UploadPhotoModal({ isOpen, onClose, onSuccess }: UploadP
               onChange={(e) => setTitle(e.target.value)}
               required
               maxLength={40}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-[#E5DCD3] text-xs text-[#765B62] focus:outline-none focus:border-[#D4A9AF] transition"
+              disabled={isUploading}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-[#E5DCD3] text-xs text-[#765B62] focus:outline-none focus:border-[#D4A9AF] transition disabled:opacity-60"
             />
           </div>
 
-          {/* Error Message */}
+          {/* Pesan error */}
           <AnimatePresence>
             {errorMessage && (
               <motion.div
@@ -230,7 +352,7 @@ export default function UploadPhotoModal({ isOpen, onClose, onSuccess }: UploadP
             )}
           </AnimatePresence>
 
-          {/* Submit Button */}
+          {/* Tombol simpan */}
           <button
             type="submit"
             disabled={isUploading || !selectedFile || !title.trim()}

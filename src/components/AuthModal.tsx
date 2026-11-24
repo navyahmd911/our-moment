@@ -30,9 +30,10 @@ export default function AuthModal() {
   }
 
   const fillQuickAccount = (accountEmail: string) => {
-    setEmail(accountEmail)
-    setErrorMessage('')
-  }
+  setEmail(accountEmail)
+  setPassword('')
+  setErrorMessage('')
+}
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm">
@@ -81,7 +82,7 @@ export default function AuthModal() {
         <div className="flex gap-2 mb-4">
           <button
             type="button"
-            onClick={() => fillQuickAccount('navy@ourmoment.love')}
+            onClick={() => fillQuickAccount('navyifa@ourmoment.com')}
             className="flex-1 py-1.5 px-2 rounded-xl bg-white border border-[#E5DCD3] hover:bg-[#F8F2EA] text-[11px] font-medium text-[#765B62] flex items-center justify-center gap-1.5 transition cursor-pointer"
           >
             <UserCheck className="w-3.5 h-3.5 text-[#D4A9AF]" />
@@ -89,7 +90,7 @@ export default function AuthModal() {
           </button>
           <button
             type="button"
-            onClick={() => fillQuickAccount('ifa@ourmoment.love')}
+            onClick={() => fillQuickAccount('ifanavy@ourmoment.com')}
             className="flex-1 py-1.5 px-2 rounded-xl bg-white border border-[#E5DCD3] hover:bg-[#F8F2EA] text-[11px] font-medium text-[#765B62] flex items-center justify-center gap-1.5 transition cursor-pointer"
           >
             <UserCheck className="w-3.5 h-3.5 text-[#AFC4C0]" />

@@ -10,12 +10,15 @@ interface OpeningPageProps {
 export default function OpeningPage({ onOpen }: OpeningPageProps) {
   const [isOpening, setIsOpening] = useState(false)
 
+
   const handleOpenClick = () => {
-    setIsOpening(true)
-    setTimeout(() => {
-      onOpen()
-    }, 1100)
-  }
+  setIsOpening(true)
+  window.dispatchEvent(new Event('start-our-moment-music'))
+
+  setTimeout(() => {
+    onOpen()
+  }, 1100)
+}
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#F8F2EA] px-4 overflow-hidden selection:bg-[#EBCFD3]">
