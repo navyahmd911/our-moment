@@ -90,7 +90,11 @@ export default function App() {
             transition={{ duration: 0.8 }}
             className="relative z-20 flex flex-col min-h-screen"
           >
-            <Navbar onReopenIntro={() => setShowOpening(true)} />
+            <Navbar
+              onReopenIntro={() => setShowOpening(true)}
+              isPlaying={isPlaying}
+              onToggleMusic={toggleMusic}
+            />
 
             <main className="flex-1">
               <Hero />

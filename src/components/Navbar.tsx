@@ -1,14 +1,23 @@
+
 import { useState, useEffect } from 'react'
-import { Heart, Menu, X, BookHeart, User, LogOut, LogIn } from 'lucide-react'
+import {
+  Heart, Menu, X, BookHeart, User,
+  LogOut, LogIn, Music2, Play, Pause
+} from 'lucide-react'
 import { websiteConfig } from '../data/memories'
-import MusicPlayer from './MusicPlayer'
 import { useAuth } from '../context/useAuth'
 
 interface NavbarProps {
   onReopenIntro?: () => void
+  isPlaying: boolean
+  onToggleMusic: () => void
 }
 
-export default function Navbar({ onReopenIntro }: NavbarProps) {
+export default function Navbar({
+  onReopenIntro,
+  isPlaying,
+  onToggleMusic,
+}: NavbarProps) {
   const [isScrolled, setIsScrolled] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const { user, profile, openAuthModal, signOut } = useAuth()
@@ -17,6 +26,7 @@ export default function Navbar({ onReopenIntro }: NavbarProps) {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 30)
     }
+
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
@@ -29,9 +39,13 @@ export default function Navbar({ onReopenIntro }: NavbarProps) {
     { name: 'Tanggal Spesial', href: '#dates' },
   ]
 
-  const scrollToSection = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+  const scrollToSection = (
+    e: React.MouseEvent<HTMLAnchorElement>,
+    href: string
+  ) => {
     e.preventDefault()
     setMobileMenuOpen(false)
+
     const element = document.querySelector(href)
     if (element) {
       element.scrollIntoView({ behavior: 'smooth' })
@@ -47,7 +61,8 @@ export default function Navbar({ onReopenIntro }: NavbarProps) {
       }`}
     >
       <div className="max-w-6xl mx-auto px-6 flex items-center justify-between">
-        {/* Logo / Initials */}
+
+        {/* Logo */}
         <a
           href="#hero"
           onClick={(e) => scrollToSection(e, '#hero')}
@@ -56,6 +71,7 @@ export default function Navbar({ onReopenIntro }: NavbarProps) {
           <div className="w-8 h-8 rounded-full bg-[#EBCFD3] border border-white flex items-center justify-center text-[#765B62] shadow-xs group-hover:scale-105 transition-transform">
             <Heart className="w-4 h-4 fill-[#765B62]" />
           </div>
+
           <div className="flex flex-col">
             <span className="font-serif text-lg font-medium text-[#533E43] tracking-tight">
               {websiteConfig.name}
@@ -66,7 +82,7 @@ export default function Navbar({ onReopenIntro }: NavbarProps) {
           </div>
         </a>
 
-        {/* Desktop Navigation Links */}
+        {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center gap-6 text-xs tracking-wider uppercase font-medium text-[#765B62]">
           {navLinks.map((link) => (
             <a
@@ -80,17 +96,44 @@ export default function Navbar({ onReopenIntro }: NavbarProps) {
           ))}
         </nav>
 
-        {/* Actions (Music Player + User Auth + Intro Toggle + Mobile Menu) */}
-        <div className="flex items-center gap-2.5">
-          <MusicPlayer />
+        {/* Actions */}
+        <div className="flex items-center gap-2">
 
-          {/* User Auth Badge */}
+          {/* New Music Player Button */}
+          <button
+            type="button"
+            onClick={onToggleMusic}
+            aria-label={isPlaying ? 'Pause music' : 'Play music'}
+            title={isPlaying ? 'Pause music' : 'Play music'}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-[#EBCFD3]/50 hover:bg-[#EBCFD3]/80 border border-[#D4A9AF]/40 text-[#765B62] shadow-xs transition-all active:scale-95 cursor-pointer"
+          >
+            <span className="relative flex items-center justify-center">
+              <Music2 className="w-4 h-4 text-[#9B7B83]" />
+
+              {isPlaying && (
+                <span className="absolute -inset-1.5 rounded-full border border-dashed border-[#D4A9AF] animate-spin" />
+              )}
+            </span>
+
+            <span className="hidden sm:inline text-xs font-medium">
+              {isPlaying ? 'Playing' : 'Play Music'}
+            </span>
+
+            {isPlaying ? (
+              <Pause className="w-3.5 h-3.5" />
+            ) : (
+              <Play className="w-3.5 h-3.5" />
+            )}
+          </button>
+
+          {/* User Authentication */}
           {user ? (
             <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/80 border border-[#E5DCD3] shadow-xs text-xs">
               <span className="flex items-center gap-1 font-medium text-[#533E43]">
                 <User className="w-3.5 h-3.5 text-[#D4A9AF]" />
                 <span>Hai, {profile?.name || 'Partner'}</span>
               </span>
+
               <button
                 onClick={signOut}
                 title="Keluar akun"
@@ -109,6 +152,7 @@ export default function Navbar({ onReopenIntro }: NavbarProps) {
             </button>
           )}
 
+          {/* Reopen Intro */}
           {onReopenIntro && (
             <button
               onClick={onReopenIntro}
@@ -120,13 +164,17 @@ export default function Navbar({ onReopenIntro }: NavbarProps) {
             </button>
           )}
 
-          {/* Mobile hamburger */}
+          {/* Mobile Menu */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="md:hidden p-2 rounded-lg text-[#765B62] hover:bg-[#EBCFD3]/40 transition"
             aria-label="Toggle menu"
           >
-            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            {mobileMenuOpen ? (
+              <X className="w-5 h-5" />
+            ) : (
+              <Menu className="w-5 h-5" />
+            )}
           </button>
         </div>
       </div>
@@ -134,7 +182,7 @@ export default function Navbar({ onReopenIntro }: NavbarProps) {
       {/* Mobile Menu Dropdown */}
       {mobileMenuOpen && (
         <div className="md:hidden bg-[#FFFDF9] border-b border-[#EBCFD3] px-6 py-5 shadow-lg flex flex-col gap-3.5">
-          {/* User state in mobile */}
+
           <div className="pb-2 border-b border-[#EBE3D9] flex items-center justify-between">
             {user ? (
               <div className="flex items-center justify-between w-full">
@@ -142,6 +190,7 @@ export default function Navbar({ onReopenIntro }: NavbarProps) {
                   <User className="w-3.5 h-3.5 text-[#D4A9AF]" />
                   <span>Akun: {profile?.name || user.email}</span>
                 </span>
+
                 <button
                   onClick={() => {
                     signOut()
